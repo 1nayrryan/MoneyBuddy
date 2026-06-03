@@ -2,15 +2,15 @@ import os
 import random
 import time
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import db
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="static", static_url_path="")
 CORS(app)
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-MODEL_NAME = "llama3.2"
+MODEL_NAME = "ollama"
 
 #ollama configurations
 def call_ollama(prompt):
@@ -245,6 +245,35 @@ def explain_more():
         return jsonify({"explanation": explanation})
     except Exception as e:
         return jsonify({"error": "API error", "details": str(e)}), 500
+
+
+@app.route("/api/ask", methods=["POST"])
+def ask():
+    """Generic prompt -> AI response endpoint used by the simple frontend.
+    Body: { "prompt": "..." }
+    If the Ollama call fails, return a lightweight mock response so the UI still works.
+    """
+    try:
+        data = request.get_json() or {}
+        prompt = data.get("prompt", "").strip()
+
+        if not prompt:
+            return jsonify({"error": "prompt is required"}), 400
+
+        try:
+            ai_resp = call_ollama(prompt)
+        except Exception as e:
+            # Fallback mock response when Ollama isn't available
+            ai_resp = f"(mock) I received your prompt: {prompt[:200]}"
+
+        return jsonify({"response": ai_resp})
+    except Exception as e:
+        return jsonify({"error": "API error", "details": str(e)}), 500
+
+
+@app.route("/", methods=["GET"])
+def index():
+    return send_from_directory("static", "index.html")
 
 
 @app.route("/api/quiz", methods=["POST"])
